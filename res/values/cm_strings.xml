@@ -270,7 +270,7 @@
     <string name="cmupdate_settings_title">CyanogenMod updates</string>
 
     <!-- About phone screen, CyanogenMod version -->
-    <string name="mod_version">CyanogenMod version</string>
+    <string name="mod_version">Ridon version</string>
     <string name="mod_version_default">Unknown</string>
     <string name="model_name">Model name</string>
 
