@@ -30,12 +30,14 @@ import com.android.settings.WirelessSettings;
 import com.android.settings.accessibility.AccessibilitySettings;
 import com.android.settings.bluetooth.BluetoothSettings;
 import com.android.settings.deviceinfo.Memory;
-import com.android.settings.fuelgauge.BatterySaverSettings;
+import com.android.settings.deviceinfo.UsbSettings;
 import com.android.settings.fuelgauge.PowerUsageSummary;
 import com.android.settings.inputmethod.InputMethodAndLanguageSettings;
 import com.android.settings.location.LocationSettings;
+import com.android.settings.lockscreen.LockScreenSettings;
 import com.android.settings.net.DataUsageMeteredSettings;
-import com.android.settings.notification.NotificationSettings;
+import com.android.settings.notification.NotificationManagerSettings;
+import com.android.settings.SoundSettings;
 import com.android.settings.notification.OtherSoundSettings;
 import com.android.settings.notification.ZenModeSettings;
 import com.android.settings.print.PrintSettingsFragment;
@@ -61,7 +63,7 @@ public final class Ranking {
     public static final int RANK_HOME = 6;
     public static final int RANK_DISPLAY = 7;
     public static final int RANK_NOTIFICATIONS = 9;
-    public static final int RANK_MEMORY = 10;
+    public static final int RANK_STORAGE = 10;
     public static final int RANK_POWER_USAGE = 11;
     public static final int RANK_USERS = 12;
     public static final int RANK_LOCATION = 13;
@@ -109,16 +111,17 @@ public final class Ranking {
         sRankMap.put(DisplaySettings.class.getName(), RANK_DISPLAY);
 
         // Notifications
-        sRankMap.put(NotificationSettings.class.getName(), RANK_NOTIFICATIONS);
+        sRankMap.put(SoundSettings.class.getName(), RANK_NOTIFICATIONS);
+        sRankMap.put(NotificationManagerSettings.class.getName(), RANK_NOTIFICATIONS);
         sRankMap.put(OtherSoundSettings.class.getName(), RANK_NOTIFICATIONS);
         sRankMap.put(ZenModeSettings.class.getName(), RANK_NOTIFICATIONS);
 
-        // Memory
-        sRankMap.put(Memory.class.getName(), RANK_MEMORY);
+        // Storage
+        sRankMap.put(Memory.class.getName(), RANK_STORAGE);
+        sRankMap.put(UsbSettings.class.getName(), RANK_STORAGE);
 
         // Battery
         sRankMap.put(PowerUsageSummary.class.getName(), RANK_POWER_USAGE);
-        sRankMap.put(BatterySaverSettings.class.getName(), RANK_POWER_USAGE);
 
         // Users
         sRankMap.put(UserSettings.class.getName(), RANK_USERS);
@@ -128,6 +131,7 @@ public final class Ranking {
 
         // Security
         sRankMap.put(SecuritySettings.class.getName(), RANK_SECURITY);
+        sRankMap.put(LockScreenSettings.class.getName(), RANK_SECURITY);
         sRankMap.put(ChooseLockGeneric.ChooseLockGenericFragment.class.getName(), RANK_SECURITY);
         sRankMap.put(ScreenPinningSettings.class.getName(), RANK_SECURITY);
 

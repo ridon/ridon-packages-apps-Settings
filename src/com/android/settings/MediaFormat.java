@@ -61,8 +61,7 @@ public class MediaFormat extends Activity {
         Resources resourcesObj = context.getResources();
         if (resourcesObj == null) { return false; }
 
-        boolean isUsb = volumeObj.getDescription(context).equalsIgnoreCase(
-                resourcesObj.getString(R.string.storage_usb));
+        boolean isUsb = volumeObj.getDescriptionId() == com.android.internal.R.string.storage_usb;
 
         return isUsb;
     }
@@ -76,8 +75,7 @@ public class MediaFormat extends Activity {
         Resources resourcesObj = context.getResources();
         if (resourcesObj == null) { return false; }
 
-        boolean isUicc = volumeObj.getDescription(context).equalsIgnoreCase(
-                resourcesObj.getString(R.string.storage_uicc));
+        boolean isUicc = volumeObj.getDescriptionId() == com.android.internal.R.string.storage_uicc;
 
         return isUicc;
     }
@@ -109,8 +107,9 @@ public class MediaFormat extends Activity {
      */
     private boolean runKeyguardConfirmation(int request) {
         // Initialize default resource id, then set the right string based on volume
-        int explanationResId = R.string.media_format_gesture_explanation;
+        int explanationResId = R.string.sdcard_media_format_gesture_explanation;
 
+        explanationResId = R.string.media_format_gesture_explanation;
         if (isUsbStorage(mStorageVolume, this)) {
             explanationResId = R.string.usb_media_format_gesture_explanation;
 
@@ -119,8 +118,7 @@ public class MediaFormat extends Activity {
         }
 
         return new ChooseLockSettingsHelper(this)
-                .launchConfirmationActivity(request,
-                        getText(R.string.media_format_gesture_prompt),
+                .launchConfirmationActivity(request, null,
                         getText(explanationResId));
     }
 

@@ -22,6 +22,7 @@ import android.content.Intent;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.preference.RingtonePreference;
+import android.telephony.TelephonyManager;
 import android.util.AttributeSet;
 import android.util.Log;
 
@@ -45,12 +46,26 @@ public class DefaultRingtonePreference extends RingtonePreference {
 
     @Override
     protected void onSaveRingtone(Uri ringtoneUri) {
-        RingtoneManager.setActualDefaultRingtoneUri(getContext(), getRingtoneType(), ringtoneUri);
+        if (getRingtoneType() == RingtoneManager.TYPE_RINGTONE) {
+            RingtoneManager.setActualRingtoneUriBySubId(getContext(),
+                    getSubId(), ringtoneUri);
+        } else {
+            RingtoneManager.setActualDefaultRingtoneUri(getContext(),
+                    getRingtoneType(), ringtoneUri);
+        }
     }
 
     @Override
     protected Uri onRestoreRingtone() {
-        return RingtoneManager.getActualDefaultRingtoneUri(getContext(), getRingtoneType());
+        final int ringtoneType = getRingtoneType();
+        final Context context = getContext();
+        TelephonyManager telephonyManager = (TelephonyManager) context.getSystemService(
+                Context.TELEPHONY_SERVICE);
+        if (telephonyManager.isMultiSimEnabled() && ringtoneType == RingtoneManager.TYPE_RINGTONE) {
+            return RingtoneManager.getActualRingtoneUriBySubId(context, getSubId());
+        } else {
+            return RingtoneManager.getActualDefaultRingtoneUri(context, ringtoneType);
+        }
     }
     
 }

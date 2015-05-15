@@ -344,6 +344,26 @@
         <item>@string/profile_action_enable</item>
     </string-array>
 
+    <string-array name="profile_doze_entries" translatable="false">
+        <item>@string/profile_action_none</item>
+        <item>@string/profile_action_enable</item>
+        <item>@string/profile_action_disable</item>
+    </string-array>
+
+    <!-- Profile mode options. -->
+     <string-array name="profile_entries" translatable="false">
+         <item>@string/profile_entries_on</item>
+         <item>@string/profile_entries_off</item>
+         <item>@string/profile_entries_no_override</item>
+     </string-array>
+
+     <!-- Values for vibrate_entries matching constants in SoundSettings. Do not translate. -->
+     <string-array name="profile_values" translatable="false">
+         <item>OVERRIDE</item>
+         <item>SUPPRESS</item>
+         <item>DEFAULT</item>
+     </string-array>
+
     <!-- Gamma calibration descriptors, deliberately empty as string values populated via
          per-device overlay. Required to build on non-hardware tunable devices -->
     <string-array name="gamma_descriptors" translatable="false">
@@ -425,5 +445,49 @@
         <item>airplane</item>
         <item>users</item>
         <item>bugreport</item>
+    </string-array>
+
+    <!-- Stylus Gestures -->
+    <string-array name="gestures_entries" translatable="false">
+        <item>@string/gestures_action_empty</item>
+        <item>@string/gestures_action_home</item>
+        <item>@string/gestures_action_back</item>
+        <item>@string/gestures_action_menu</item>
+        <item>@string/gestures_action_search</item>
+        <item>@string/gestures_action_recent</item>
+    </string-array>
+
+    <string-array name="gestures_values" translatable="false">
+        <item>1000</item>
+        <item>1001</item>
+        <item>1002</item>
+        <item>1003</item>
+        <item>1004</item>
+        <item>1005</item>
+    </string-array>
+
+    <string-array name="expanded_desktop_entries" translatable="false">
+        <item>@string/expanded_hide_both</item>
+        <item>@string/expanded_hide_status</item>
+        <item>@string/expanded_hide_navigation</item>
+    </string-array>
+
+    <string-array name="expanded_desktop_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+
+    <!-- Quick pulldown -->
+    <string-array name="quick_pulldown_entries" translatable="false">
+        <item>@string/quick_pulldown_off</item>
+        <item>@string/quick_pulldown_right</item>
+        <item>@string/quick_pulldown_left</item>
+    </string-array>
+
+    <string-array name="quick_pulldown_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
     </string-array>
 </resources>

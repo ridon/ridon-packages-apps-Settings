@@ -23,6 +23,7 @@ import android.app.FragmentManager;
 import android.app.FragmentTransaction;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -50,12 +51,14 @@ import android.preference.Preference;
 import android.preference.PreferenceFragment;
 import android.preference.PreferenceManager;
 import android.preference.PreferenceScreen;
+import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.transition.TransitionManager;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.TypedValue;
 import android.util.Xml;
+import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -76,6 +79,7 @@ import com.android.settings.applications.ManageApplications;
 import com.android.settings.applications.ProcessStatsUi;
 import com.android.settings.blacklist.BlacklistSettings;
 import com.android.settings.bluetooth.BluetoothSettings;
+import com.android.settings.cyanogenmod.DisplayRotation;
 import com.android.settings.dashboard.DashboardCategory;
 import com.android.settings.dashboard.DashboardSummary;
 import com.android.settings.dashboard.DashboardTile;
@@ -83,9 +87,11 @@ import com.android.settings.dashboard.NoHomeDialogFragment;
 import com.android.settings.dashboard.SearchResultsSummary;
 import com.android.settings.deviceinfo.Memory;
 import com.android.settings.deviceinfo.UsbSettings;
-import com.android.settings.fuelgauge.BatterySaverSettings;
 import com.android.settings.fuelgauge.PowerUsageSummary;
+import com.android.settings.livedisplay.LiveDisplay;
+import com.android.settings.lockscreen.LockScreenSettings;
 import com.android.settings.notification.NotificationAppList;
+import com.android.settings.notification.NotificationManagerSettings;
 import com.android.settings.notification.OtherSoundSettings;
 import com.android.settings.profiles.NFCProfileTagCallback;
 import com.android.settings.profiles.ProfilesSettings;
@@ -102,12 +108,10 @@ import com.android.settings.nfc.PaymentSettings;
 import com.android.settings.notification.AppNotificationSettings;
 import com.android.settings.notification.ConditionProviderSettings;
 import com.android.settings.notification.NotificationAccessSettings;
-import com.android.settings.notification.NotificationSettings;
 import com.android.settings.notification.NotificationStation;
 import com.android.settings.notification.ZenModeSettings;
 import com.android.settings.print.PrintJobSettingsFragment;
 import com.android.settings.print.PrintSettingsFragment;
-import com.android.settings.privacyguard.PrivacyGuardPrefs;
 import com.android.settings.sim.SimSettings;
 import com.android.settings.tts.TextToSpeechSettings;
 import com.android.settings.users.UserSettings;
@@ -191,6 +195,11 @@ public class SettingsActivity extends Activity
      * that fragment.
      */
     public static final String EXTRA_SHOW_FRAGMENT_TITLE = ":settings:show_fragment_title";
+    /**
+     * The package name used to resolve the title resource id.
+     */
+    public static final String EXTRA_SHOW_FRAGMENT_TITLE_RES_PACKAGE_NAME =
+            ":settings:show_fragment_title_res_package_name";
     public static final String EXTRA_SHOW_FRAGMENT_TITLE_RESID =
             ":settings:show_fragment_title_resid";
     public static final String EXTRA_SHOW_FRAGMENT_AS_SHORTCUT =
@@ -205,8 +214,6 @@ public class SettingsActivity extends Activity
     private static final String EXTRA_UI_OPTIONS = "settings:ui_options";
 
     private static final String EMPTY_QUERY = "";
-
-    private static final String VOICE_WAKEUP_PACKAGE_NAME = "com.cyanogenmod.voicewakeup";
 
     private static boolean sShowNoHomeNotice = false;
 
@@ -226,8 +233,11 @@ public class SettingsActivity extends Activity
             R.id.sim_settings,
             R.id.wireless_settings,
             R.id.device_section,
-            R.id.notification_settings,
-            R.id.display_settings,
+            R.id.sound_settings,
+            R.id.display_and_lights_settings,
+            R.id.lockscreen_settings,
+            R.id.notification_manager,
+            R.id.button_settings,
             R.id.storage_settings,
             R.id.application_settings,
             R.id.battery_settings,
@@ -242,8 +252,8 @@ public class SettingsActivity extends Activity
             R.id.about_settings,
             R.id.accessibility_settings,
             R.id.print_settings,
-            R.id.nfc_payment_settings,
             R.id.home_settings,
+            R.id.status_bar_settings,
             R.id.dashboard,
             R.id.privacy_settings_cyanogenmod
     };
@@ -300,11 +310,10 @@ public class SettingsActivity extends Activity
             PaymentSettings.class.getName(),
             KeyboardLayoutPickerFragment.class.getName(),
             ZenModeSettings.class.getName(),
-            NotificationSettings.class.getName(),
+            SoundSettings.class.getName(),
             ChooseLockPassword.ChooseLockPasswordFragment.class.getName(),
             ChooseLockPattern.ChooseLockPatternFragment.class.getName(),
             InstalledAppDetails.class.getName(),
-            BatterySaverSettings.class.getName(),
             NotificationAppList.class.getName(),
             AppNotificationSettings.class.getName(),
             OtherSoundSettings.class.getName(),
@@ -312,7 +321,11 @@ public class SettingsActivity extends Activity
             ApnSettings.class.getName(),
             BlacklistSettings.class.getName(),
             ProfilesSettings.class.getName(),
-            com.android.settings.cyanogenmod.PrivacySettings.class.getName()
+            com.android.settings.cyanogenmod.PrivacySettings.class.getName(),
+            NotificationManagerSettings.class.getName(),
+            LockScreenSettings.class.getName(),
+            LiveDisplay.class.getName(),
+            DisplayRotation.class.getName()
     };
 
 
@@ -669,7 +682,23 @@ public class SettingsActivity extends Activity
         if (initialTitleResId > 0) {
             mInitialTitle = null;
             mInitialTitleResId = initialTitleResId;
-            setTitle(mInitialTitleResId);
+
+            final String initialTitleResPackageName = intent.getStringExtra(
+                    EXTRA_SHOW_FRAGMENT_TITLE_RES_PACKAGE_NAME);
+            if (initialTitleResPackageName != null) {
+                try {
+                    Context authContext = createPackageContextAsUser(initialTitleResPackageName,
+                            0 /* flags */, new UserHandle(UserHandle.myUserId()));
+                    mInitialTitle = authContext.getResources().getText(mInitialTitleResId);
+                    setTitle(mInitialTitle);
+                    mInitialTitleResId = -1;
+                    return;
+                } catch (NameNotFoundException e) {
+                    Log.w(LOG_TAG, "Could not find package" + initialTitleResPackageName);
+                }
+            } else {
+                setTitle(mInitialTitleResId);
+            }
         } else {
             mInitialTitleResId = -1;
             final String initialTitle = intent.getStringExtra(EXTRA_SHOW_FRAGMENT_TITLE);
@@ -978,6 +1007,8 @@ public class SettingsActivity extends Activity
      * @param target The list in which the parsed categories and tiles should be placed.
      */
     private void loadCategoriesFromResource(int resid, List<DashboardCategory> target) {
+        final boolean showAdvancedPreferences = showAdvancedPreferences(this);
+
         XmlResourceParser parser = null;
         try {
             parser = getResources().getXml(resid);
@@ -1037,6 +1068,18 @@ public class SettingsActivity extends Activity
                         if (innerNodeName.equals("dashboard-tile")) {
                             DashboardTile tile = new DashboardTile();
 
+                            sa = obtainStyledAttributes(attrs, R.styleable.Preference);
+                            tv = sa.peekValue(R.styleable.Preference_advanced);
+                            if (tv != null && tv.type == TypedValue.TYPE_INT_BOOLEAN) {
+                                final boolean value = tv.data != 0;
+
+                                final boolean skipAdvanced = (!showAdvancedPreferences && value)
+                                        || (showAdvancedPreferences && !value);
+                                if (skipAdvanced) {
+                                    continue;
+                                }
+                            }
+
                             sa = obtainStyledAttributes(
                                     attrs, com.android.internal.R.styleable.PreferenceHeader);
                             tile.id = sa.getResourceId(
@@ -1064,6 +1107,11 @@ public class SettingsActivity extends Activity
                                     com.android.internal.R.styleable.PreferenceHeader_icon, 0);
                             tile.fragment = sa.getString(
                                     com.android.internal.R.styleable.PreferenceHeader_fragment);
+                            sa.recycle();
+
+                            sa = obtainStyledAttributes(attrs, R.styleable.DashboardTile);
+                            tile.switchControl = sa.getString(
+                                    R.styleable.DashboardTile_switchClass);
                             sa.recycle();
 
                             if (curBundle == null) {
@@ -1142,7 +1190,8 @@ public class SettingsActivity extends Activity
                 boolean removeTile = false;
                 id = (int) tile.id;
                 if (id == R.id.operator_settings || id == R.id.manufacturer_settings
-                        || id == R.id.device_specific_gesture_settings) {
+                        || id == R.id.device_specific_gesture_settings
+                        || id == R.id.oclick) {
                     if (!Utils.updateTileToSpecificActivityFromMetaDataOrRemove(this, tile)) {
                         removeTile = true;
                     }
@@ -1154,6 +1203,16 @@ public class SettingsActivity extends Activity
                 } else if (id == R.id.bluetooth_settings) {
                     // Remove Bluetooth Settings if Bluetooth service is not available.
                     if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH)) {
+                        removeTile = true;
+                    }
+                } else if (id == R.id.mobile_networks) {
+                    if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+                        removeTile = true;
+                    } else if (TelephonyManager.getDefault().getPhoneCount() > 1) {
+                        removeTile = true;
+                    }
+                } else if (id == R.id.msim_mobile_networks) {
+                    if (TelephonyManager.getDefault().getPhoneCount() <= 1) {
                         removeTile = true;
                     }
                 } else if (id == R.id.data_usage_settings) {
@@ -1187,18 +1246,6 @@ public class SettingsActivity extends Activity
                             || Utils.isMonkeyRunning()) {
                         removeTile = true;
                     }
-                } else if (id == R.id.nfc_payment_settings) {
-                    if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_NFC)) {
-                        removeTile = true;
-                    } else {
-                        // Only show if NFC is on and we have the HCE feature
-                        NfcAdapter adapter = NfcAdapter.getDefaultAdapter(this);
-                        if (adapter == null || !adapter.isEnabled() ||
-                                !getPackageManager().hasSystemFeature(
-                                        PackageManager.FEATURE_NFC_HOST_CARD_EMULATION)) {
-                            removeTile = true;
-                        }
-                    }
                 } else if (id == R.id.print_settings) {
                     boolean hasPrintingSupport = getPackageManager().hasSystemFeature(
                             PackageManager.FEATURE_PRINTING);
@@ -1210,18 +1257,11 @@ public class SettingsActivity extends Activity
                             UserManager.DISALLOW_DEBUGGING_FEATURES)) {
                         removeTile = true;
                     }
-                } else if (id == R.id.button_settings) {
-                    boolean hasDeviceKeys = getResources().getInteger(
-                            com.android.internal.R.integer.config_deviceHardwareKeys) != 0;
-                    if (!hasDeviceKeys) {
-                        removeTile = true;
-                    }
-                } else if (id == R.id.voice_wakeup_settings) {
-                    if (!Utils.isPackageInstalled(this, VOICE_WAKEUP_PACKAGE_NAME, false)) {
-                        removeTile = true;
-                    }
                 } else if (id == R.id.performance_settings) {
-                    if (!(pm.hasPowerProfiles() || (showDev && !Build.TYPE.equals("user")))) {
+                    final boolean forceHide =
+                            getResources().getBoolean(R.bool.config_hidePerformanceSettings);
+                    if (forceHide ||
+                            !(pm.hasPowerProfiles() || (showDev && !Build.TYPE.equals("user")))) {
                         removeTile = true;
                     }
                 }
@@ -1400,4 +1440,25 @@ public class SettingsActivity extends Activity
         super.onNewIntent(intent);
     }
 
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_SEARCH:
+                mSearchMenuItem.expandActionView();
+                return true;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    /**
+     * Showing "advanced options" on a retail build involves a toggle,
+     * however, it should always show all advanced options if the option is enabled
+     * by default in an overlay.
+     */
+    public static boolean showAdvancedPreferences(Context context) {
+        return (android.provider.Settings.Secure.getInt(context.getContentResolver(),
+                android.provider.Settings.Secure.ADVANCED_MODE, 1) == 1)
+                && context.getResources().getBoolean(
+                com.android.internal.R.bool.config_advancedSettingsMode);
+    }
 }

@@ -44,7 +44,7 @@
             android:layout_height="84dp"
             android:layout_gravity="center"
             android:tint="@color/theme_accent"
-            android:src="@drawable/nfc_writer" />
+            android:src="@drawable/ic_local_offer_48px" />
 
         <TextView android:id="@+id/touch_tag"
             style="?android:attr/textAppearanceLarge"

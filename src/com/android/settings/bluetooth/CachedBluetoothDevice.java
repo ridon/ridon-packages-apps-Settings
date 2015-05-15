@@ -20,6 +20,7 @@ import android.bluetooth.BluetoothUuid;
 import android.bluetooth.BluetoothClass;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothProfile;
+import android.bluetooth.BluetoothUuid;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.ParcelUuid;
@@ -282,13 +283,16 @@ final class CachedBluetoothDevice implements Comparable<CachedBluetoothDevice> {
         if (!ensurePaired()) {
             return;
         }
-        if (profile.connect(mDevice)) {
+        if (profile != null && profile.connect(mDevice)) {
             if (Utils.D) {
                 Log.d(TAG, "Command sent successfully:CONNECT " + describe(profile));
             }
             return;
         }
-        Log.i(TAG, "Failed to connect " + profile.toString() + " to " + mName);
+        if (profile != null)
+            Log.i(TAG, "Failed to connect " + profile.toString() + " to " + mName);
+        else
+            Log.i(TAG, "Failed to connect. No profile specified");
     }
 
     private boolean ensurePaired() {
@@ -348,8 +352,7 @@ final class CachedBluetoothDevice implements Comparable<CachedBluetoothDevice> {
     }
 
     int getProfileConnectionState(LocalBluetoothProfile profile) {
-        if (mProfileConnectionState == null ||
-                mProfileConnectionState.get(profile) == null) {
+        if (mProfileConnectionState.get(profile) == null) {
             // If cache is empty make the binder call to get the state
             int state = profile.getConnectionStatus(mDevice);
             mProfileConnectionState.put(profile, state);
@@ -519,6 +522,11 @@ final class CachedBluetoothDevice implements Comparable<CachedBluetoothDevice> {
 
         ParcelUuid[] localUuids = mLocalAdapter.getUuids();
         if (localUuids == null) return false;
+
+        /**
+         * Now we know if the device supports PBAP, update permissions...
+         */
+        processPhonebookAccess();
 
         mProfileManager.updateProfiles(uuids, localUuids, mProfiles, mRemovedProfiles,
                                        mLocalNapRoleConnected, mDevice);
@@ -817,5 +825,16 @@ final class CachedBluetoothDevice implements Comparable<CachedBluetoothDevice> {
             editor.putInt(mDevice.getAddress(), mMessageRejectionCount);
         }
         editor.commit();
+    }
+
+    private void processPhonebookAccess() {
+        if (mDevice.getBondState() != BluetoothDevice.BOND_BONDED) return;
+
+        ParcelUuid[] uuids = mDevice.getUuids();
+        if (BluetoothUuid.containsAnyUuid(uuids, PbapServerProfile.PBAB_CLIENT_UUIDS)) {
+            // The pairing dialog now warns of phone-book access for paired devices.
+            // No separate prompt is displayed after pairing.
+            setPhonebookPermissionChoice(CachedBluetoothDevice.ACCESS_ALLOWED);
+        }
     }
 }

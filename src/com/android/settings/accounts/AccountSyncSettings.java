@@ -24,11 +24,13 @@ import android.accounts.AccountManagerCallback;
 import android.accounts.AccountManagerFuture;
 import android.accounts.AuthenticatorException;
 import android.accounts.OperationCanceledException;
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.SyncAdapterType;
 import android.content.SyncInfo;
 import android.content.SyncStatusInfo;
@@ -52,6 +54,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 
 import com.android.settings.R;
+import com.android.settings.SecuritySettings;
 import com.android.settings.Utils;
 
 import java.io.IOException;
@@ -63,19 +66,20 @@ import java.util.List;
 public class AccountSyncSettings extends AccountPreferenceBase {
 
     public static final String ACCOUNT_KEY = "account";
-    private static final int MENU_SYNC_NOW_ID       = Menu.FIRST;
-    private static final int MENU_SYNC_CANCEL_ID    = Menu.FIRST + 1;
+    private static final int MENU_SYNC_NOW_ID = Menu.FIRST;
+    private static final int MENU_SYNC_CANCEL_ID = Menu.FIRST + 1;
     private static final int MENU_REMOVE_ACCOUNT_ID = Menu.FIRST + 2;
     private static final int REALLY_REMOVE_DIALOG = 100;
     private static final int FAILED_REMOVAL_DIALOG = 101;
     private static final int CANT_DO_ONETIME_SYNC_DIALOG = 102;
+    private static final int REQUEST_CHECK_CREDENTIALS = 103;
     private TextView mUserId;
     private TextView mProviderId;
     private ImageView mProviderIcon;
     private TextView mErrorInfoView;
     private Account mAccount;
-    private ArrayList<SyncStateCheckBoxPreference> mCheckBoxes =
-                new ArrayList<SyncStateCheckBoxPreference>();
+    private ArrayList<SyncStateSwitchPreference> mSwitches =
+            new ArrayList<SyncStateSwitchPreference>();
     private ArrayList<SyncAdapterType> mInvisibleAdapters = Lists.newArrayList();
 
     @Override
@@ -83,27 +87,57 @@ public class AccountSyncSettings extends AccountPreferenceBase {
         Dialog dialog = null;
         if (id == REALLY_REMOVE_DIALOG) {
             dialog = new AlertDialog.Builder(getActivity())
-                .setTitle(R.string.really_remove_account_title)
-                .setMessage(R.string.really_remove_account_message)
-                .setNegativeButton(android.R.string.cancel, null)
-                .setPositiveButton(R.string.remove_account_label,
-                        new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        // TODO: We need an API to remove an account from a different user.
-                        // See: http://b/15466880
-                        AccountManager.get(AccountSyncSettings.this.getActivity())
-                                .removeAccountAsUser(mAccount,
-                                new AccountManagerCallback<Boolean>() {
+                    .setTitle(R.string.really_remove_account_title)
+                    .setMessage(R.string.really_remove_account_message)
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setPositiveButton(R.string.remove_account_label,
+                            new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    Activity activity = getActivity();
+                                    if (mAccount.type.equals(SecuritySettings.ACCOUNT_TYPE_CYANOGEN)
+                                            && SecuritySettings.isDeviceLocked()) {
+                                        SecuritySettings.updateCyanogenDeviceLockState(AccountSyncSettings.this,
+                                                false, REQUEST_CHECK_CREDENTIALS);
+                                    } else {
+                                        removeAccount();
+                                    }
+
+                                }
+                            })
+
+                    .create();
+        } else if (id == FAILED_REMOVAL_DIALOG) {
+            dialog = new AlertDialog.Builder(getActivity())
+                    .setTitle(R.string.really_remove_account_title)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .setMessage(R.string.remove_account_failed)
+                    .create();
+        } else if (id == CANT_DO_ONETIME_SYNC_DIALOG) {
+            dialog = new AlertDialog.Builder(getActivity())
+                    .setTitle(R.string.cant_sync_dialog_title)
+                    .setMessage(R.string.cant_sync_dialog_message)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .create();
+        }
+
+        return dialog;
+    }
+
+    private void removeAccount() {
+        AccountManager.get(AccountSyncSettings.this.getActivity())
+                .removeAccount(mAccount, getActivity(),
+                        new AccountManagerCallback<Bundle>() {
                             @Override
-                            public void run(AccountManagerFuture<Boolean> future) {
+                            public void run(AccountManagerFuture<Bundle> future) {
                                 // If already out of this screen, don't proceed.
                                 if (!AccountSyncSettings.this.isResumed()) {
                                     return;
                                 }
                                 boolean failed = true;
                                 try {
-                                    if (future.getResult() == true) {
+                                    if (future.getResult()
+                                            .getBoolean(AccountManager.KEY_BOOLEAN_RESULT)) {
                                         failed = false;
                                     }
                                 } catch (OperationCanceledException e) {
@@ -120,24 +154,7 @@ public class AccountSyncSettings extends AccountPreferenceBase {
                                     finish();
                                 }
                             }
-                        }, null, mUserHandle);
-                    }
-                })
-                .create();
-        } else if (id == FAILED_REMOVAL_DIALOG) {
-            dialog = new AlertDialog.Builder(getActivity())
-                .setTitle(R.string.really_remove_account_title)
-                .setPositiveButton(android.R.string.ok, null)
-                .setMessage(R.string.remove_account_failed)
-                .create();
-        } else if (id == CANT_DO_ONETIME_SYNC_DIALOG) {
-            dialog = new AlertDialog.Builder(getActivity())
-                .setTitle(R.string.cant_sync_dialog_title)
-                .setMessage(R.string.cant_sync_dialog_message)
-                .setPositiveButton(android.R.string.ok, null)
-                .create();
-        }
-        return dialog;
+                }, null);
     }
 
     @Override
@@ -195,6 +212,16 @@ public class AccountSyncSettings extends AccountPreferenceBase {
     }
 
     @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_CHECK_CREDENTIALS) {
+            if (resultCode == Activity.RESULT_OK) {
+                removeAccount();
+            }
+        }
+    }
+
+    @Override
     public void onResume() {
         mAuthenticatorHelper.listenToAccountUpdates();
         updateAuthDescriptions();
@@ -209,9 +236,9 @@ public class AccountSyncSettings extends AccountPreferenceBase {
         mAuthenticatorHelper.stopListeningToAccountUpdates();
     }
 
-    private void addSyncStateCheckBox(Account account, String authority) {
-        SyncStateCheckBoxPreference item =
-                new SyncStateCheckBoxPreference(getActivity(), account, authority);
+    private void addSyncStateSwitch(Account account, String authority) {
+        SyncStateSwitchPreference item =
+                new SyncStateSwitchPreference(getActivity(), account, authority);
         item.setPersistent(false);
         final ProviderInfo providerInfo = getPackageManager().resolveContentProviderAsUser(
                 authority, 0, mUserHandle.getIdentifier());
@@ -226,7 +253,7 @@ public class AccountSyncSettings extends AccountPreferenceBase {
         String title = getString(R.string.sync_item_title, providerLabel);
         item.setTitle(title);
         item.setKey(authority);
-        mCheckBoxes.add(item);
+        mSwitches.add(item);
     }
 
     @Override
@@ -258,7 +285,7 @@ public class AccountSyncSettings extends AccountPreferenceBase {
     public void onPrepareOptionsMenu(Menu menu) {
         super.onPrepareOptionsMenu(menu);
         // Note that this also counts accounts that are not currently displayed
-        boolean syncActive = ContentResolver.getCurrentSyncsAsUser(
+        boolean syncActive = !ContentResolver.getCurrentSyncsAsUser(
                 mUserHandle.getIdentifier()).isEmpty();
         menu.findItem(MENU_SYNC_NOW_ID).setVisible(!syncActive);
         menu.findItem(MENU_SYNC_CANCEL_ID).setVisible(syncActive);
@@ -282,8 +309,8 @@ public class AccountSyncSettings extends AccountPreferenceBase {
 
     @Override
     public boolean onPreferenceTreeClick(PreferenceScreen preferences, Preference preference) {
-        if (preference instanceof SyncStateCheckBoxPreference) {
-            SyncStateCheckBoxPreference syncPref = (SyncStateCheckBoxPreference) preference;
+        if (preference instanceof SyncStateSwitchPreference) {
+            SyncStateSwitchPreference syncPref = (SyncStateSwitchPreference) preference;
             String authority = syncPref.getAuthority();
             Account account = syncPref.getAccount();
             final int userId = mUserHandle.getIdentifier();
@@ -313,12 +340,18 @@ public class AccountSyncSettings extends AccountPreferenceBase {
 
     private void startSyncForEnabledProviders() {
         requestOrCancelSyncForEnabledProviders(true /* start them */);
-        getActivity().invalidateOptionsMenu();
+        final Activity activity = getActivity();
+        if (activity != null) {
+            activity.invalidateOptionsMenu();
+        }
     }
 
     private void cancelSyncForEnabledProviders() {
         requestOrCancelSyncForEnabledProviders(false /* cancel them */);
-        getActivity().invalidateOptionsMenu();
+        final Activity activity = getActivity();
+        if (activity != null) {
+            activity.invalidateOptionsMenu();
+        }
     }
 
     private void requestOrCancelSyncForEnabledProviders(boolean startSync) {
@@ -326,10 +359,10 @@ public class AccountSyncSettings extends AccountPreferenceBase {
         int count = getPreferenceScreen().getPreferenceCount();
         for (int i = 0; i < count; i++) {
             Preference pref = getPreferenceScreen().getPreference(i);
-            if (! (pref instanceof SyncStateCheckBoxPreference)) {
+            if (! (pref instanceof SyncStateSwitchPreference)) {
                 continue;
             }
-            SyncStateCheckBoxPreference syncPref = (SyncStateCheckBoxPreference) pref;
+            SyncStateSwitchPreference syncPref = (SyncStateSwitchPreference) pref;
             if (!syncPref.isChecked()) {
                 continue;
             }
@@ -367,6 +400,10 @@ public class AccountSyncSettings extends AccountPreferenceBase {
     protected void onSyncStateUpdated() {
         if (!isResumed()) return;
         setFeedsState();
+        final Activity activity = getActivity();
+        if (activity != null) {
+            activity.invalidateOptionsMenu();
+        }
     }
 
     private void setFeedsState() {
@@ -376,15 +413,15 @@ public class AccountSyncSettings extends AccountPreferenceBase {
         List<SyncInfo> currentSyncs = ContentResolver.getCurrentSyncsAsUser(userId);
         boolean syncIsFailing = false;
 
-        // Refresh the sync status checkboxes - some syncs may have become active.
-        updateAccountCheckboxes();
+        // Refresh the sync status switches - some syncs may have become active.
+        updateAccountSwitches();
 
         for (int i = 0, count = getPreferenceScreen().getPreferenceCount(); i < count; i++) {
             Preference pref = getPreferenceScreen().getPreference(i);
-            if (! (pref instanceof SyncStateCheckBoxPreference)) {
+            if (! (pref instanceof SyncStateSwitchPreference)) {
                 continue;
             }
-            SyncStateCheckBoxPreference syncPref = (SyncStateCheckBoxPreference) pref;
+            SyncStateSwitchPreference syncPref = (SyncStateSwitchPreference) pref;
 
             String authority = syncPref.getAuthority();
             Account account = syncPref.getAccount();
@@ -439,7 +476,6 @@ public class AccountSyncSettings extends AccountPreferenceBase {
             syncPref.setChecked(oneTimeSyncMode || syncEnabled);
         }
         mErrorInfoView.setVisibility(syncIsFailing ? View.VISIBLE : View.GONE);
-        getActivity().invalidateOptionsMenu();
     }
 
     @Override
@@ -450,7 +486,7 @@ public class AccountSyncSettings extends AccountPreferenceBase {
             finish();
             return;
         }
-        updateAccountCheckboxes();
+        updateAccountSwitches();
         onSyncStateUpdated();
     }
 
@@ -468,7 +504,7 @@ public class AccountSyncSettings extends AccountPreferenceBase {
         return false;
     }
 
-    private void updateAccountCheckboxes() {
+    private void updateAccountSwitches() {
         mInvisibleAdapters.clear();
 
         SyncAdapterType[] syncAdapters = ContentResolver.getSyncAdapterTypesAsUser(
@@ -480,7 +516,7 @@ public class AccountSyncSettings extends AccountPreferenceBase {
             if (!sa.accountType.equals(mAccount.type)) continue;
             if (sa.isUserVisible()) {
                 if (Log.isLoggable(TAG, Log.VERBOSE)) {
-                    Log.d(TAG, "updateAccountCheckboxes: added authority " + sa.authority
+                    Log.d(TAG, "updateAccountSwitches: added authority " + sa.authority
                             + " to accountType " + sa.accountType);
                 }
                 authorities.add(sa.authority);
@@ -491,10 +527,10 @@ public class AccountSyncSettings extends AccountPreferenceBase {
             }
         }
 
-        for (int i = 0, n = mCheckBoxes.size(); i < n; i++) {
-            getPreferenceScreen().removePreference(mCheckBoxes.get(i));
+        for (int i = 0, n = mSwitches.size(); i < n; i++) {
+            getPreferenceScreen().removePreference(mSwitches.get(i));
         }
-        mCheckBoxes.clear();
+        mSwitches.clear();
 
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
             Log.d(TAG, "looking for sync adapters that match account " + mAccount);
@@ -508,13 +544,13 @@ public class AccountSyncSettings extends AccountPreferenceBase {
                 Log.d(TAG, "  found authority " + authority + " " + syncState);
             }
             if (syncState > 0) {
-                addSyncStateCheckBox(mAccount, authority);
+                addSyncStateSwitch(mAccount, authority);
             }
         }
 
-        Collections.sort(mCheckBoxes);
-        for (int i = 0, n = mCheckBoxes.size(); i < n; i++) {
-            getPreferenceScreen().addPreference(mCheckBoxes.get(i));
+        Collections.sort(mSwitches);
+        for (int i = 0, n = mSwitches.size(); i < n; i++) {
+            getPreferenceScreen().addPreference(mSwitches.get(i));
         }
     }
 

@@ -102,6 +102,11 @@
     <!-- For Search -->
     <declare-styleable name="Preference">
         <attr name="keywords" format="string" />
+        <attr name="advanced" format="boolean" />
+    </declare-styleable>
+
+    <declare-styleable name="DashboardTile">
+        <attr name="switchClass" format="string" />
     </declare-styleable>
 
     <attr name="switchBarTheme" format="reference" />

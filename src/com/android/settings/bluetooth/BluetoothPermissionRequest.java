@@ -24,6 +24,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.PowerManager;
+import android.os.UserManager;
 import android.util.Log;
 
 import com.android.settings.R;
@@ -56,6 +57,12 @@ public final class BluetoothPermissionRequest extends BroadcastReceiver {
         if (DEBUG) Log.d(TAG, "onReceive" + action);
 
         if (action.equals(BluetoothDevice.ACTION_CONNECTION_ACCESS_REQUEST)) {
+            UserManager um = (UserManager) context.getSystemService(Context.USER_SERVICE);
+            // skip the notification for managed profiles.
+            if (com.android.settings.Utils.isManagedProfile(um)) {
+                if (DEBUG) Log.d(TAG, "Blocking notification for managed profile.");
+                return;
+            }
             // convert broadcast intent into activity intent (same action string)
             mDevice = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
             mRequestType = intent.getIntExtra(BluetoothDevice.EXTRA_ACCESS_REQUEST_TYPE,
@@ -202,6 +209,10 @@ public final class BluetoothPermissionRequest extends BroadcastReceiver {
         }
 
         LocalBluetoothManager bluetoothManager = LocalBluetoothManager.getInstance(mContext);
+        if (bluetoothManager == null) {
+            Log.e(TAG, "Error: Can't get LocalBluetoothManager");
+            return false;
+        }
         CachedBluetoothDeviceManager cachedDeviceManager =
             bluetoothManager.getCachedDeviceManager();
         CachedBluetoothDevice cachedDevice = cachedDeviceManager.findDevice(mDevice);

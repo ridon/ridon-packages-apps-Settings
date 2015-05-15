@@ -41,8 +41,11 @@ import com.android.location.XT.IXTSrvCb.Stub;
 import android.text.Html;
 import android.content.Intent;
 import android.util.Log;
-
+import android.content.pm.PackageManager;
+import android.content.pm.ApplicationInfo;
 import com.android.settings.R;
+import java.util.List;
+import android.content.res.Resources;
 
 /**
  * A page with 3 radio buttons to choose the location mode.
@@ -108,15 +111,46 @@ public class LocationMode extends LocationSettingsBase
         }
     };
 
+    private boolean checkGsPresence() {
+        Resources res = getResources();
+        String[] GS_PACKAGE_NAMES = res.getStringArray(R.array.gs_packages);
+        boolean gsExists = false;
+        List<ApplicationInfo> packages;
+        PackageManager pm = getActivity().getPackageManager();
+        packages = pm.getInstalledApplications(0);
+        for (ApplicationInfo packageInfo : packages) {
+            if (!gsExists) {
+                for (String packageName:GS_PACKAGE_NAMES) {
+                    if (packageInfo.packageName.equals(packageName)) {
+                        gsExists = true;
+                        break;
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+        return gsExists;
+    }
+
     /**
      * Bind Izat service
      */
     private void initUserPrefService(){
-        mServiceConn = new XTServiceConnection();
+        if (mServiceConn == null) {
+            mServiceConn = new XTServiceConnection();
+        }
         Intent i = new Intent(IXTSrv.class.getName());
         i.setPackage("com.qualcomm.location.XT");
         izatConnResult = getActivity().bindService(i, mServiceConn, Context.BIND_AUTO_CREATE);
     }
+
+    IBinder.DeathRecipient mDeathRecipient = new IBinder.DeathRecipient() {
+        @Override
+        public void binderDied() {
+            initUserPrefService();
+        }
+    };
 
     /**
      * IZat service connection
@@ -135,6 +169,7 @@ public class LocationMode extends LocationSettingsBase
                         mIZat.setSummary(Html.fromHtml(izatSubtitle));
                     }
                     mXTService.registerCallback(mCallback);
+                    service.linkToDeath(mDeathRecipient, 0);
                 }
             }catch(RemoteException e){
                 Log.d(TAG,"Failed connecting service!");
@@ -200,7 +235,7 @@ public class LocationMode extends LocationSettingsBase
         PreferenceCategory enhancedLocation = (PreferenceCategory)
         root.findPreference(KEY_ENHANCED_LOCATION);
         mIZat = (WrappingIZatSwitchPreference) root.findPreference(KEY_LOCATION_IZAT);
-        if(!izatConnResult){
+        if(!izatConnResult || !checkGsPresence()){
             root.removePreference(enhancedLocation);
         }else{
             try{
